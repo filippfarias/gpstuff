@@ -43,6 +43,8 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
 %               Some likelihoods may use this. For example, in case of 
 %               Poisson likelihood we have z_i=E_i, that is, the expected 
 %               value for the ith case. 
+%      pscov  - optional input for covariance matrix prior.
+%      pmean  - optional input for mean vector prior.
 %      fcorr  - Method used for latent marginal posterior corrections. 
 %               Default is 'off'. For Laplace possible methods are
 %               'fact' and 'cm2'.  If method is 'on', 'cm2' is used
@@ -76,6 +78,7 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
 %
 % Copyright (c) 2007-2010 Jarno Vanhatalo
 % Copyright (c) 2012 Aki Vehtari
+% Copyright (c) 2020 Filipe P. Farias
 
 % This software is distributed under the GNU General Public 
 % License (version 3 or later); please refer to the file 
@@ -90,6 +93,8 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
   ip.addParamValue('yt', [], @(x) isreal(x) && all(isfinite(x(:))))
   ip.addParamValue('z', [], @(x) isreal(x) && all(isfinite(x(:))))
   ip.addParamValue('zt', [], @(x) isreal(x) && all(isfinite(x(:))))
+  ip.addParamValue('pscov', [], @(x) isreal(x) && all(isfinite(x(:))))
+  ip.addParamValue('pmean', [], @(x) isreal(x) && all(isfinite(x(:))))
   ip.addParamValue('predcf', [], @(x) isempty(x) || ...
                    isvector(x) && isreal(x) && all(isfinite(x)&x>0))
   ip.addParamValue('tstind', [], @(x) isempty(x) || iscell(x) ||...
@@ -106,6 +111,8 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
   yt=ip.Results.yt;
   z=ip.Results.z;
   zt=ip.Results.zt;
+  pscov=ip.Results.pscov;
+  pmean=ip.Results.pmean;
   predcf=ip.Results.predcf;
   tstind=ip.Results.tstind;
   fcorr=ip.Results.fcorr;
@@ -148,7 +155,11 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
       if ~isfield(gp.lik, 'nondiagW')
         % Likelihoods with diagonal Hessian
         %[e, edata, eprior, f, L, a, W, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z);
-        [e, edata, eprior, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z);
+        if ~isempty(pmean) && ~isempty(pscov)
+          [e, edata, eprior, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z,'pscov',pscov,'pmean',pmean);
+        else
+          [e, edata, eprior, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z);
+        end
         if isnan(e)
             Eft=NaN; Varft=NaN; lpyt=NaN; Eyt=NaN; Varyt=NaN;
             return
@@ -175,7 +186,12 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
           Eft = K_nf(:,p)*deriv;
         else
           deriv = gp.lik.fh.llg(gp.lik, y, f, 'latent', z);
-          Eft = K_nf*deriv;
+          if ~isempty(pmean) && ~isempty(pscov)
+            Eft = pscov*deriv; % Rasmussen (2006) Eq. 3.17
+          else
+            Eft = K_nf*deriv; % Rasmussen (2006) Eq. 3.17
+          end
+
           if isfield(gp,'meanf')
             Eft=Eft + K_nf*(K\H'*b_m);
           end
@@ -183,7 +199,12 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
         
         if nargout > 1
           % Evaluate the variance
-          kstarstar = gp_trvar(gp,xt,predcf);
+          if ~isempty(pmean) && ~isempty(pscov)
+            % kstarstar = gp_trvar(gp,xt,predcf);
+            kstar = gp_trcov(gp,xt,predcf);
+          else
+            kstarstar = gp_trvar(gp,xt,predcf);
+          end
           if isfield(gp,'meanf')
             kstarstar= kstarstar + diag(Hs'*B_m*Hs);
           end
@@ -198,9 +219,15 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
               V = ldlsolve(L,sqrtWKfn);
               Varft = kstarstar - sum(sqrtWKfn.*V,1)';
             else
-              W = diag(W);
-              V = L\(sqrt(W)*K_nf');
-              Varft = kstarstar - sum(V'.*V',2);
+              if ~isempty(pmean) && ~isempty(pscov)
+                W = diag(W);
+                V = L\(sqrt(W)*pscov');
+                Varft = kstar - V'*V;
+              else
+                W = diag(W);
+                V = L\(sqrt(W)*K_nf');
+                Varft = kstarstar - sum(V'.*V',2);
+              end
             end
           else
             % We may end up here if the likelihood is not log concave

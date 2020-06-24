@@ -47,7 +47,9 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gp_pred(gp, x, y, varargin)
 %      zt     - optional observed quantity in triplet (xt_i,yt_i,zt_i)
 %               Some likelihoods may use this. For example, in case of
 %               Poisson likelihood we have z_i=E_i, that is, the expected
-%               value for the ith case.
+%               value for the ith case. 
+%      pscov  - optional input for covariance matrix prior(ONLY LAPLACE APP.).
+%      pmean  - optional input for mean vector prior(ONLY LAPLACE APP.).
 %      fcorr  - Method used for latent marginal posterior corrections.
 %               Default is 'off'. Possible methods are 'fact' for EP
 %               and either 'fact' or 'cm2' for Laplace. If method is
@@ -83,6 +85,7 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gp_pred(gp, x, y, varargin)
 % Copyright (c) 2008 Jouni Hartikainen
 % Copyright (c) 2010,2012 Aki Vehtari
 % Copyright (c) 2014 Arno Solin and Jukka Koskenranta
+% Copyright (c) 2020 Filipe P. Farias
 
 % This software is distributed under the GNU General Public
 % License (version 3 or later); please refer to the file
@@ -97,6 +100,8 @@ ip.addOptional('xt', [], @(x) isempty(x) || (isreal(x) && all(isfinite(x(:)))))
 ip.addParamValue('yt', [], @(x) isreal(x) && all(isfinite(x(:))))
 ip.addParamValue('zt', [], @(x) isreal(x) && all(isfinite(x(:))))
 ip.addParamValue('z', [], @(x) isreal(x) && all(isfinite(x(:))))
+ip.addParamValue('pscov', [], @(x) isreal(x) && all(isfinite(x(:))))
+ip.addParamValue('pmean', [], @(x) isreal(x) && all(isfinite(x(:))))
 ip.addParamValue('predcf', [], @(x) isempty(x) || ...
     isvector(x) && isreal(x) && all(isfinite(x)&x>=0))
 ip.addParamValue('tstind', [], @(x) isempty(x) || iscell(x) ||...

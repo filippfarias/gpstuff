@@ -30,7 +30,7 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
 %    Rasmussen, C. E. and Williams, C. K. I. (2006). Gaussian
 %    Processes for Machine Learning. The MIT Press.
 %
-%    Jarno Vanhatalo, Pasi Jylänki and Aki Vehtari (2009). Gaussian
+%    Jarno Vanhatalo, Pasi Jyl??nki and Aki Vehtari (2009). Gaussian
 %    process regression with Student-t likelihood. In Y. Bengio et al,
 %    editors, Advances in Neural Information Processing Systems 22,
 %    pp. 1910-1918
@@ -58,7 +58,8 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
 %
 % Copyright (c) 2007-2010 Jarno Vanhatalo
 % Copyright (c) 2010 Aki Vehtari
-% Copyright (c) 2010 Pasi Jylänki
+% Copyright (c) 2010 Pasi Jyl??nki
+% Copyright (c) 2020 Filipe P. Farias
 
 % This software is distributed under the GNU General Public
 % License (version 3 or later); please refer to the file
@@ -76,10 +77,14 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
   ip.addOptional('x', @(x) isnumeric(x) && isreal(x) && all(isfinite(x(:))))
   ip.addOptional('y', @(x) isnumeric(x) && isreal(x) && all(isfinite(x(:))))
   ip.addParamValue('z', [], @(x) isnumeric(x) && isreal(x) && all(isfinite(x(:))))
+  ip.addParamValue('pscov', [], @(x) isnumeric(x) && isreal(x) && all(isfinite(x(:))))
+  ip.addParamValue('pmean', [], @(x) isnumeric(x) && isreal(x) && all(isfinite(x(:))))
   ip.parse(w, gp, varargin{:});
   x=ip.Results.x;
   y=ip.Results.y;
   z=ip.Results.z;
+  pscov=ip.Results.pscov;
+  pmean=ip.Results.pmean;
   
   if strcmp(w, 'init')
     % Initialize cache
@@ -98,7 +103,7 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
     gp.fh.loopred=@gpla_loopred;
     e = gp;
     % remove clutter from the nested workspace
-    clear w gp varargin ip x y z
+    clear w gp varargin ip x y z pscov pmean
   elseif strcmp(w, 'clearcache')
     % clear the cache
     gp.fh.ne('clearcache');
@@ -106,10 +111,10 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
     % call laplace_algorithm using the function handle to the nested function
     % this way each gp has its own peristent memory for Laplace
     %[e, edata, eprior, f, L, a, La2, p] = gp.fh.ne(w, gp, x, y, z);
-    [e, edata, eprior, param] = gp.fh.ne(w, gp, x, y, z);
+    [e, edata, eprior, param] = gp.fh.ne(w, gp, x, y, z, pscov, pmean);
   end
 
-  function [e, edata, eprior, param] = laplace_algorithm(w, gp, x, y, z)
+  function [e, edata, eprior, param] = laplace_algorithm(w, gp, x, y, z, pscov, pmean)
       
   if strcmp(w, 'clearcache')
       ch=[];
@@ -167,7 +172,14 @@ function [e, edata, eprior, param] = gpla_e(w, gp, varargin)
           
           if ~isfield(gp.lik, 'nondiagW')
            
-            K = gp_trcov(gp, x);
+            if ~isempty(pscov)
+              K = pscov;
+            else
+              K = gp_trcov(gp, x);
+            end
+            if ~isempty(pmean)
+              f = pmean;
+            end
             if isfield(gp,'meanf')
               K=K+H'*B_m*H;
             end
@@ -2126,7 +2138,7 @@ function [e, g, h] = egh(f, varargin)
   h = -gp.lik.fh.llg2(gp.lik, y, f', 'latent', z);
 end
 function ikf = iKf(f, varargin)
-  ind2depo = {}
+  
   switch gp.type
     case {'PIC' 'PIC_BLOCK'}
       iLaf = zeros(size(f));
