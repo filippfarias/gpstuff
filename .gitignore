@@ -12,3 +12,5 @@ _region_.*
 \#*\#
 SuiteSparse/
 *.mexa64
+._.DS_Store
+.DS_Store
