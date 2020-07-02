@@ -221,7 +221,7 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
             else
               if ~isempty(pmean) && ~isempty(pscov)
                 W = diag(W);
-                V = L\(sqrt(W)*pscov');
+                V = L\(sqrt(W)*K_nf');
                 Varft = kstar - V'*V;
               else
                 W = diag(W);
