@@ -155,7 +155,7 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
       if ~isfield(gp.lik, 'nondiagW')
         % Likelihoods with diagonal Hessian
         %[e, edata, eprior, f, L, a, W, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z);
-        if ~isempty(pmean) && ~isempty(pscov)
+        if ~isempty(pmean) || ~isempty(pscov)
           [e, edata, eprior, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z,'pscov',pscov,'pmean',pmean);
         else
           [e, edata, eprior, p] = gpla_e(gp_pak(gp), gp, x, y, 'z', z);
@@ -186,10 +186,10 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
           Eft = K_nf(:,p)*deriv;
         else
           deriv = gp.lik.fh.llg(gp.lik, y, f, 'latent', z);
-          if ~isempty(pmean) && ~isempty(pscov)
-            Eft = pscov*deriv; % Rasmussen (2006) Eq. 3.17
+          if ~isempty(pscov)
+            Eft = pscov*deriv; % Rasmussen (2006) Eq. 3.21
           else
-            Eft = K_nf*deriv; % Rasmussen (2006) Eq. 3.17
+            Eft = K_nf*deriv; % Rasmussen (2006) Eq. 3.21
           end
 
           if isfield(gp,'meanf')
@@ -199,9 +199,9 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
         
         if nargout > 1
           % Evaluate the variance
-          if ~isempty(pmean) && ~isempty(pscov)
+          if ~isempty(pscov)
             % kstarstar = gp_trvar(gp,xt,predcf);
-            kstar = gp_trcov(gp,xt,predcf);
+            Kstarstar = gp_trcov(gp,xt,predcf);
           else
             kstarstar = gp_trvar(gp,xt,predcf);
           end
@@ -219,10 +219,11 @@ function [Eft, Varft, lpyt, Eyt, Varyt] = gpla_pred(gp, x, y, varargin)
               V = ldlsolve(L,sqrtWKfn);
               Varft = kstarstar - sum(sqrtWKfn.*V,1)';
             else
-              if ~isempty(pmean) && ~isempty(pscov)
+              if ~isempty(pscov)
                 W = diag(W);
-                V = L\(sqrt(W)*K_nf');
-                Varft = kstar - V'*V;
+                V = L\(sqrt(W)*pscov');
+                Varft = Kstarstar - V'*V;
+                keyboard;
               else
                 W = diag(W);
                 V = L\(sqrt(W)*K_nf');
